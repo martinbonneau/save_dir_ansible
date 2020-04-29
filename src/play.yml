@@ -1,0 +1,12 @@
+---
+- name: "Example playbook"
+  hosts: storage
+  gather_facts: no
+  tasks:
+  - name: "Just say hello"
+    saver:
+      arg: "Hello from my module"
+    register: resultat
+
+
+  - debug: var=resultat

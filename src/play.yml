@@ -5,7 +5,7 @@
   tasks:
   - name: "Just say hello"
     saver:
-      arg: "Hello from my module"
+      path_to_save: "/var/www/personal-webs"
     register: resultat
 
 

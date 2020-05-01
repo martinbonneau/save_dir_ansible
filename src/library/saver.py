@@ -56,7 +56,7 @@ def main():
             #path is a directory
             
             #walk inside it
-            files = walkdir(path_to_save)
+            files = walkInDir(path_to_save)
 
         else:
             output = "The given path is not a file or a directory."
@@ -68,18 +68,17 @@ def main():
     module.exit_json(changed=True, ansible_module_results=output)
 
 
-def walkdir(dir_path):
-    files = []
+def walkInDir(dir_path):
+    files_export = []
 
     if (Exists(dir_path) and Isdir(dir_path)):
 
         for root, dirs, files in Walk(dir_path, topdown=False):
             for name in files:
-                files.append(Join(root, name))
-            for name in dirs:
-                walkdir(Join(root, name))
+                #append the filepath to the array
+                files_export.append(Join(root, name))
     
-    return files
+    return files_export
 
 
 if __name__ == "__main__":

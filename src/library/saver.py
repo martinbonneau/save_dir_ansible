@@ -46,6 +46,27 @@ class DB:
             database="save"
         )
 
+    def create_save(self, name:str, date:str):
+        '''
+        @param name : The name of the save
+        @param date : The date of the save
+        @return : The id if save was create or False
+        '''
+
+        query = "INSERT INTO SAVES (name, date) VALUES (%s, %s)"
+        values = (name, date)
+
+        cursor = self.mydb.cursor(dictionary=True)
+        cursor.execute(query, values)
+
+        self.mydb.commit()
+
+        if(cursor.rowcount == 1):
+            self.save_id = cursor.lastrowid
+            return cursor.lastrowid
+        else :
+            return False
+    
 
 
 def main():

@@ -67,6 +67,46 @@ class DB:
         else :
             return False
     
+    def create_file(self, name:str, size:int, hash:str, location:str):
+        '''
+        @param name : The name of the save
+        @param date : The date of the save
+        @return : The id if save was create or False
+        '''
+
+        query = "INSERT INTO FILES (name, size, hash) VALUES (%s, %s, %s)"
+        values = (name, str(size), hash)
+
+        cursor = self.mydb.cursor(dictionary=True)
+        cursor.execute(query, values)
+
+        self.mydb.commit()
+
+        if(cursor.rowcount == 1):
+            fileid = cursor.lastrowid
+
+            if( self.create_file_references(fileid, location) > 0):
+                return fileid
+
+        return False
+
+    def create_file_references(self, fileid:int, location:str, saveid:int=0 ):
+        if not saveid : saveid = self.save_id
+
+        #insert into savedFiles
+        query = "INSERT INTO SAVEDFILES (fileid, saveid, location) VALUES (%s, %s, %s);"
+        values = (str(fileid), str(saveid), location)
+
+        cursor = self.mydb.cursor()
+        cursor.execute( query, values )
+
+        self.mydb.commit()
+
+        if(cursor.rowcount == 1):
+            return fileid
+        
+        return False
+
 
 
 def main():

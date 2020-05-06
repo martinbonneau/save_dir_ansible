@@ -178,6 +178,22 @@ class DB:
         else:
             return False
 
+    def get_hashblocks_of_file(self, fileid:int):
+
+        query = """SELECT blocks.BLOCKNUMBER, blocks.HASH
+                   FROM blocksfiles, blocks
+                   WHERE blocksfiles.FILEID = %s
+                   and  blocks.ID = blocksfiles.BLOCKID;
+        """
+        values = (str(fileid),)
+        
+        cursor = self.mydb.cursor(dictionary=True)
+        cursor.execute(query, values)
+
+        res = cursor.fetchall()
+
+        return res
+
 
 
 def main():

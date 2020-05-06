@@ -90,6 +90,33 @@ class DB:
 
         return False
 
+    def create_block(self, blocknumber:int, value:str, hash:str, fileid:int):
+
+        query = "INSERT INTO BLOCKS (blocknumber, value, hash) VALUES (%s, %s, %s)"
+        values = (str(blocknumber), value, hash)
+
+        cursor = self.mydb.cursor(dictionary=True)
+        cursor.execute(query, values)
+
+        self.mydb.commit()
+
+        if(cursor.rowcount == 1):
+            blockid = cursor.lastrowid
+
+            #insert into savedFiles
+            query = "INSERT INTO BLOCKSFILES (fileid, blockid) VALUES (%s, %s);"
+            values = (str(fileid), blockid)
+
+            cursor.execute( query, values )
+
+            self.mydb.commit()
+
+
+            if(cursor.rowcount == 1):
+                return blockid
+
+        return False
+
     def create_file_references(self, fileid:int, location:str, saveid:int=0 ):
         if not saveid : saveid = self.save_id
 

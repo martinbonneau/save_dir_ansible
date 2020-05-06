@@ -158,6 +158,26 @@ class DB:
         else:
             return False
 
+    def get_locations_by_fileid(self, fileid:int):
+
+
+        query = """ SELECT savedfiles.location
+                    FROM savedfiles
+                    WHERE savedfiles.FILEID = %s;
+        """
+
+        values = (str(fileid),)
+        
+        cursor = self.mydb.cursor(dictionary=True)
+        cursor.execute(query, values)
+
+        res = cursor.fetchall()
+
+        if len(res):
+            return res
+        else:
+            return False
+
 
 
 def main():

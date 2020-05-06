@@ -194,7 +194,25 @@ class DB:
 
         return res
 
+    def get_last_saveid_by_savename(self, saveName:str):
 
+        query = """SELECT max(id)
+                   FROM saves
+                   WHERE saves.NAME = %s;
+        """
+        values = (saveName,)
+        
+        cursor = self.mydb.cursor(dictionary=True)
+        cursor.execute(query, values)
+
+        res = cursor.fetchall()
+
+        if len(res):
+            return res
+        else:
+            return False
+
+#endclass db
 
 def main():
     module = AnsibleModule(

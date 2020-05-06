@@ -136,6 +136,30 @@ class DB:
 
 
 
+    def get_files_of_save(self, saveid:int=0):
+
+        if not saveid : saveid = self.save_id
+
+        query = """SELECT files.*, savedfiles.location
+                   FROM savedfiles, files
+                   WHERE savedfiles.SAVEID = %s
+                   AND files.id = savedfiles.FILEID;
+        """
+
+        values = (str(saveid),)
+        
+        cursor = self.mydb.cursor(dictionary=True)
+        cursor.execute(query, values)
+
+        res = cursor.fetchall()
+
+        if len(res):
+            return res
+        else:
+            return False
+
+
+
 def main():
     module = AnsibleModule(
         argument_spec = dict(

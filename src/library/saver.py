@@ -33,6 +33,20 @@ results:
     description: describe what module return
 """
 
+class DB:
+    mydb = None
+    save_id = 0
+    
+
+    def __init__(self):
+        self.mydb = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            passwd="root",
+            database="save"
+        )
+
+
 
 def main():
     module = AnsibleModule(

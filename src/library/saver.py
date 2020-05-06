@@ -3,6 +3,8 @@
 
 from ansible.module_utils.basic import AnsibleModule
 
+import mysql.connector
+
 from os import walk as Walk
 
 from os.path import exists as Exists

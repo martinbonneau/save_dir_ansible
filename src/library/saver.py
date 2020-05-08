@@ -12,6 +12,8 @@ from os.path import isfile as Isfile
 from os.path import isdir as Isdir
 from os.path import join as Join
 
+from datetime import datetime as Datetime
+
 
 DOCUMENTATION = """
 module: saver
@@ -225,23 +227,50 @@ def main():
     )
 
     #get params
-    path_to_save = module.params.get("path_to_save")
+    #path_to_save = module.params.get("path_to_save")
+    
+    #mock data
+    path_to_save = r'E:\Shared\p6\save_dir_ansible\example\simple'
+    save_name = "MysuperSave1"
+    blockSize = 64000
 
     #check if the path exists and if it's a file or a directory
     if(Exists(path_to_save)):
 
         if (Isfile(path_to_save)):
             #path is a single file
-            output = "single file"
+            files = [path_to_save]
 
         elif (Isdir(path_to_save)):
             #path is a directory
             
-            #walk inside it
+            #get files of dir
             files = walkInDir(path_to_save)
+        
+
+        db = DB()
+        lastSaveId = db.get_last_saveid_by_savename(save_name)[0]["max(id)"]
+
+        #mockup
+        #lastSaveId = 1
+
+        if (db.create_save(save_name, str(Datetime.now()))):
+        #mockup
+        #if True:
+
+            
+            if(lastSaveId) :
+                db_files = db.get_files_of_save(lastSaveId)
+            else:
+                db_files = []
+
+            
+            for file in files:
+                pass
+
 
         else:
-            output = "The given path is not a file or a directory."
+            output = "Can't create save object in database"
 
     else:
         output = "The given path doesn't exist on the host."

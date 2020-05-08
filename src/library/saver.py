@@ -11,6 +11,11 @@ from os.path import exists as Exists
 from os.path import isfile as Isfile
 from os.path import isdir as Isdir
 from os.path import join as Join
+from os.path import getsize as GetSizeOfThis
+
+from ntpath import split as SplitFile
+
+from hashlib import md5
 
 from datetime import datetime as Datetime
 
@@ -266,7 +271,56 @@ def main():
 
             
             for file in files:
-                pass
+                #compute actual md5 of the file
+                hashfile = md5()
+                with open(file, 'rb') as fopen:
+
+                    sliced_content = fopen.read(blockSize)
+                    while sliced_content:
+                        hashfile.update(sliced_content)
+                        sliced_content = fopen.read(blockSize)
+
+
+                #get both name and directory of the file
+                file_dir, file_name = SplitFile(file)
+                compute_blocks_flag = True
+
+                #check hash of files
+                for db_file in db_files:
+                    
+                    if ( db_file["NAME"] == file_name ):
+
+                        #check hashes
+                        if ( db_file["HASH"] == hashfile.hexdigest() ):
+
+                            #build array of all locations file
+                            file_locations = []
+                            for loc in db.get_locations_by_fileid(db_file["ID"]):
+                                file_locations.append(loc["location"])
+
+                            #check if location exists
+                            if ( file_dir in file_locations ) :
+                                #no changes for this file
+                                #just insert references for the current save and continue
+                                db.create_file_references(db_file["ID"], db_file["location"])
+                                compute_blocks_flag = False
+
+
+                            else :
+                                #file already exists but has been moved or copied
+                                #update location
+                                db.create_file_references(db_file["ID"], file_dir)
+                                compute_blocks_flag = False
+
+                        #else, file has been modified, we have to create file and compute blocks
+
+                        break
+
+                #no changes for the current file, continue to the next file_to_save
+                if not compute_blocks_flag : continue
+                else:
+                    fileid = db.create_file(file_name, GetSizeOfThis(file), hashfile.hexdigest(), file_dir)
+
 
 
         else:

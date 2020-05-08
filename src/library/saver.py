@@ -239,6 +239,8 @@ def main():
     save_name = "MysuperSave1"
     blockSize = 64000
 
+    output = ""
+
     #check if the path exists and if it's a file or a directory
     if(Exists(path_to_save)):
 
@@ -246,7 +248,7 @@ def main():
             #path is a single file
             files = [path_to_save]
 
-        elif (Isdir(path_to_save)):
+        else:
             #path is a directory
             
             #get files of dir

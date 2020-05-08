@@ -320,7 +320,31 @@ def main():
                 if not compute_blocks_flag : continue
                 else:
                     fileid = db.create_file(file_name, GetSizeOfThis(file), hashfile.hexdigest(), file_dir)
+                
+                
+                #get stored hash_blocks
+                db_hashes = {}
+                for db_hash in db.get_hashblocks_of_file(fileid):
+                    db_hashes[db_hash["BLOCKNUMBER"]] = db_hash["HASH"]
 
+                #compute hash of each block
+                with open(file, 'rb') as fopen:
+
+                    #read file and slice it in blockSize
+                    block = fopen.read(blockSize)
+                    block_number = 0
+
+                    while block:
+                        hash_file = md5(block)
+
+                        if( not len(db_hashes) or hash_file != db_hashes[block_number]):
+                            #hash are differents, we have to reupload the block
+                            db.create_block(block_number, block, hash_file.hexdigest(), fileid)
+
+                        block_number += 1
+                        block = fopen.read(blockSize)
+                
+                output = 'saved 100 per 100 ok'
 
 
         else:

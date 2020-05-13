@@ -42,6 +42,8 @@ results:
     description: describe what module return
 """
 
+
+
 class DB:
     mydb = None
     save_id = 0
@@ -55,6 +57,7 @@ class DB:
             database="save"
         )
 
+    
     def create_save(self, name:str, date:str):
         '''
         @param name : The name of the save
@@ -76,6 +79,7 @@ class DB:
         else :
             return False
     
+
     def create_file(self, name:str, size:int, hash:str, location:str):
         '''
         @param name : The name of the save
@@ -98,6 +102,7 @@ class DB:
                 return fileid
 
         return False
+
 
     def create_block(self, blocknumber:int, value:str, hash:str, fileid:int):
 
@@ -125,6 +130,7 @@ class DB:
                 return blockid
 
         return False
+
 
     def create_file_references(self, fileid:int, location:str, saveid:int=0 ):
         if not saveid : saveid = self.save_id
@@ -167,6 +173,7 @@ class DB:
         else:
             return False
 
+
     def get_locations_by_fileid(self, fileid:int):
 
 
@@ -187,6 +194,7 @@ class DB:
         else:
             return False
 
+
     def get_hashblocks_of_file(self, fileid:int):
 
         query = """SELECT blocks.BLOCKNUMBER, blocks.HASH
@@ -202,6 +210,44 @@ class DB:
         res = cursor.fetchall()
 
         return res
+
+    def get_blocks_of_file(self, fileid:int, start:int, end:int):
+
+        query = """SELECT blocks.BLOCKNUMBER, blocks.value
+                   FROM blocksfiles, blocks
+                   WHERE blocksfiles.FILEID = %s
+                   and  blocks.ID = blocksfiles.BLOCKID
+                   and blocks.BLOCKNUMBER >= """ + str(start) + """
+                   and blocks.BLOCKNUMBER < """  + str(end)   + """
+                   ORDER BY blocks.BLOCKNUMBER
+        """
+        values = (str(fileid),)
+        
+        cursor = self.mydb.cursor(dictionary=True)
+        cursor.execute(query, values)
+
+        res = cursor.fetchall()
+
+        return res
+
+
+    def get_saveid_by_savedate(self, date:str):
+
+        query = """SELECT id
+                   FROM saves
+                   WHERE saves.DATE = %s;
+        """
+        values = (date,)
+        
+        cursor = self.mydb.cursor(dictionary=True)
+        cursor.execute(query, values)
+
+        res = cursor.fetchall()
+
+        if len(res):
+            return res
+        else:
+            return False
 
     def get_last_saveid_by_savename(self, saveName:str):
 
@@ -223,6 +269,9 @@ class DB:
 
 #endclass db
 
+
+
+
 def main():
     module = AnsibleModule(
         argument_spec = dict(
@@ -230,130 +279,163 @@ def main():
             path_to_save = dict(required=True, type='str'),
         )
     )
-
+    
     #get params
     #path_to_save = module.params.get("path_to_save")
-    
+
     #mock data
     path_to_save = r'E:\Shared\p6\save_dir_ansible\example\simple'
     save_name = "MysuperSave1"
     blockSize = 64000
+    action = "restore"
+    restore_date = "2020-05-13 10:38:28.044540"
 
-    output = ""
+    output=""
 
-    #check if the path exists and if it's a file or a directory
-    if(Exists(path_to_save)):
+    db = DB()
 
-        if (Isfile(path_to_save)):
-            #path is a single file
-            files = [path_to_save]
+    if(action == "save"):
 
-        else:
-            #path is a directory
-            
-            #get files of dir
-            files = walkInDir(path_to_save)
-        
+        #check if the path exists and if it's a file or a directory
+        if(Exists(path_to_save)):
 
-        db = DB()
-        lastSaveId = db.get_last_saveid_by_savename(save_name)[0]["max(id)"]
+            if (Isfile(path_to_save)):
+                #path is a single file
+                files = [path_to_save]
 
-        #mockup
-        #lastSaveId = 1
-
-        if (db.create_save(save_name, str(Datetime.now()))):
-        #mockup
-        #if True:
-
-            
-            if(lastSaveId) :
-                db_files = db.get_files_of_save(lastSaveId)
             else:
-                db_files = []
+                #path is a directory
+                
+                #get files of dir
+                files = walkInDir(path_to_save)
 
             
-            for file in files:
-                #compute actual md5 of the file
-                hashfile = md5()
-                with open(file, 'rb') as fopen:
+            lastSaveId = db.get_last_saveid_by_savename(save_name)[0]["max(id)"]
 
-                    sliced_content = fopen.read(blockSize)
-                    while sliced_content:
-                        hashfile.update(sliced_content)
-                        sliced_content = fopen.read(blockSize)
+            #mockup
+            #lastSaveId = 1
 
+            if (db.create_save(save_name, str(Datetime.now()))):
+            #mockup
+            #if True:
 
-                #get both name and directory of the file
-                file_dir, file_name = SplitFile(file)
-                compute_blocks_flag = True
-
-                #check hash of files
-                for db_file in db_files:
-                    
-                    if ( db_file["NAME"] == file_name ):
-
-                        #check hashes
-                        if ( db_file["HASH"] == hashfile.hexdigest() ):
-
-                            #build array of all locations file
-                            file_locations = []
-                            for loc in db.get_locations_by_fileid(db_file["ID"]):
-                                file_locations.append(loc["location"])
-
-                            #check if location exists
-                            if ( file_dir in file_locations ) :
-                                #no changes for this file
-                                #just insert references for the current save and continue
-                                db.create_file_references(db_file["ID"], db_file["location"])
-                                compute_blocks_flag = False
-
-
-                            else :
-                                #file already exists but has been moved or copied
-                                #update location
-                                db.create_file_references(db_file["ID"], file_dir)
-                                compute_blocks_flag = False
-
-                        #else, file has been modified, we have to create file and compute blocks
-
-                        break
-
-                #no changes for the current file, continue to the next file_to_save
-                if not compute_blocks_flag : continue
+                
+                if(lastSaveId) :
+                    db_files = db.get_files_of_save(lastSaveId)
                 else:
-                    fileid = db.create_file(file_name, GetSizeOfThis(file), hashfile.hexdigest(), file_dir)
-                
-                
-                #get stored hash_blocks
-                db_hashes = {}
-                for db_hash in db.get_hashblocks_of_file(fileid):
-                    db_hashes[db_hash["BLOCKNUMBER"]] = db_hash["HASH"]
+                    db_files = []
 
-                #compute hash of each block
-                with open(file, 'rb') as fopen:
 
-                    #read file and slice it in blockSize
-                    block = fopen.read(blockSize)
-                    block_number = 0
+                for file in files:
+                    #compute actual md5 of the file
+                    hashfile = md5()
+                    with open(file, 'rb') as fopen:
 
-                    while block:
-                        hash_file = md5(block)
+                        sliced_content = fopen.read(blockSize)
+                        while sliced_content:
+                            hashfile.update(sliced_content)
+                            sliced_content = fopen.read(blockSize)
 
-                        if( not len(db_hashes) or hash_file != db_hashes[block_number]):
-                            #hash are differents, we have to reupload the block
-                            db.create_block(block_number, block, hash_file.hexdigest(), fileid)
 
-                        block_number += 1
+                    #get both name and directory of the file
+                    file_dir, file_name = SplitFile(file)
+                    compute_blocks_flag = True
+
+                    #check hash of files
+                    for db_file in db_files:
+                        
+                        if ( db_file["NAME"] == file_name ):
+
+                            #check hashes
+                            if ( db_file["HASH"] == hashfile.hexdigest() ):
+
+                                #build array of all locations file
+                                file_locations = []
+                                for loc in db.get_locations_by_fileid(db_file["ID"]):
+                                    file_locations.append(loc["location"])
+
+                                #check if location exists
+                                if ( file_dir in file_locations ) :
+                                    #no changes for this file
+                                    #just insert references for the current save and continue
+                                    db.create_file_references(db_file["ID"], db_file["location"])
+                                    compute_blocks_flag = False
+
+
+                                else :
+                                    #file already exists but has been moved or copied
+                                    #update location
+                                    db.create_file_references(db_file["ID"], file_dir)
+                                    compute_blocks_flag = False
+
+                            #else, file has been modified, we have to create file and compute blocks
+
+                            break
+
+                    #no changes for the current file, continue to the next file_to_save
+                    if not compute_blocks_flag : continue
+                    else:
+                        fileid = db.create_file(file_name, GetSizeOfThis(file), hashfile.hexdigest(), file_dir)
+
+
+                    #get stored hash_blocks
+                    db_hashes = {}
+                    for db_hash in db.get_hashblocks_of_file(fileid):
+                        db_hashes[db_hash["BLOCKNUMBER"]] = db_hash["HASH"]
+
+                    #compute hash of each block
+                    with open(file, 'rb') as fopen:
+
+                        #read file and slice it in blockSize
                         block = fopen.read(blockSize)
-                
-                output = 'saved 100 per 100 ok'
+                        block_number = 0
 
+                        while block:
+                            hash_file = md5(block)
+
+                            if( not len(db_hashes) or hash_file != db_hashes[block_number]):
+                                #hash are differents, we have to reupload the block
+                                db.create_block(block_number, block, hash_file.hexdigest(), fileid)
+
+                            block_number += 1
+                            block = fopen.read(blockSize)
+                    
+                    output = 'saved 100 per 100 ok'
+                    
+            
+            else:
+                output = "Can't create save object in database"
 
         else:
-            output = "Can't create save object in database"
+            output = "The given path doesn't exist on the host."
+
+
+    elif (action == "restore"):
+        lastSaveId = db.get_saveid_by_savedate(restore_date)[0]["id"]
+
+        for restore_file in db.get_files_of_save(lastSaveId):
+
+            #erase / create file
+            restored_file = open(Join(restore_file["location"] + '/', restore_file["NAME"]), 'wb')
+            restored_file.close()
+
+            block_index = 0
+            blocks = db.get_blocks_of_file(restore_file["ID"], block_index, block_index+5)
+
+            while (blocks):
+                with open(Join(restore_file["location"] + '/', restore_file["NAME"]), 'ab+') as restored_file:
+                    for block in blocks:
+                        restored_file.write(bytes(block["value"], encoding="utf8"))
+                
+                block_index += 5
+                blocks = db.get_blocks_of_file(restore_file["ID"], block_index, block_index+5)
+
+
+
 
     else:
-        output = "The given path doesn't exist on the host."
+        output = "Unknow action \"" + action + "\""
+
 
     #export something to ansible output
     module.exit_json(changed=True, ansible_module_results=output)

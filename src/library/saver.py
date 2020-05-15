@@ -410,9 +410,14 @@ def main():
 
 
     elif (action == "restore"):
-        lastSaveId = db.get_saveid_by_savedate(restore_date)[0]["id"]
+
+        if (restore_date == None)   : lastSaveId = db.get_last_saveid_by_savename(save_name)[0]["max(id)"]
+        else                        : lastSaveId = db.get_saveid_by_savedate(restore_date)[0]["id"]
 
         for restore_file in db.get_files_of_save(lastSaveId):
+            
+            #if folder doesn't exists, create it
+            if ( not (Exists(restore_file["location"]) and Isdir(restore_file["location"]))): makedirs(restore_file["location"])
 
             #erase / create file
             restored_file = open(Join(restore_file["location"] + '/', restore_file["NAME"]), 'wb')

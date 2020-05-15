@@ -316,14 +316,8 @@ def main():
             #lastSaveId = 1
 
             if (db.create_save(save_name, str(Datetime.now()))):
-            #mockup
-            #if True:
 
-                
-                if(lastSaveId) :
-                    db_files = db.get_files_of_save(lastSaveId)
-                else:
-                    db_files = []
+                db_files = db.get_files_of_save(lastSaveId)
 
 
                 for file in files:
@@ -340,6 +334,8 @@ def main():
                     #get both name and directory of the file
                     file_dir, file_name = SplitFile(file)
                     compute_blocks_flag = True
+                    db_file_id = -1
+
 
                     #check hash of files
                     for db_file in db_files:
@@ -369,6 +365,7 @@ def main():
                                     compute_blocks_flag = False
 
                             #else, file has been modified, we have to create file and compute blocks
+                            db_file_id = db_file["ID"]
 
                             break
 
@@ -380,7 +377,7 @@ def main():
 
                     #get stored hash_blocks
                     db_hashes = {}
-                    for db_hash in db.get_hashblocks_of_file(fileid):
+                    for db_hash in db.get_hashblocks_of_file(db_file_id):
                         db_hashes[db_hash["BLOCKNUMBER"]] = db_hash["HASH"]
 
                     #compute hash of each block
@@ -391,11 +388,13 @@ def main():
                         block_number = 0
 
                         while block:
-                            hash_file = md5(block)
+                            hash_block = md5(block)
 
-                            if( not len(db_hashes) or hash_file != db_hashes[block_number]):
+                            if( not len(db_hashes) or ( len(db_hashes) < block_number+1 or hash_block.hexdigest() != db_hashes[block_number])):
                                 #hash are differents, we have to reupload the block
-                                db.create_block(block_number, block, hash_file.hexdigest(), fileid)
+                                db.create_block(block_number, block, hash_block.hexdigest(), fileid)
+                            else:
+                                db.create_block_references(hash_block.hexdigest(), fileid)
 
                             block_number += 1
                             block = fopen.read(blockSize)

@@ -52,15 +52,16 @@ results:
 class DB:
     mydb = None
     save_id = 0
-    
+    ftp = None
 
+    
     def __init__(self):
         self.mydb = mysql.connector.connect(
             host="localhost",
             user="root",
-            passwd="root",
-            database="save"
-
+            passwd="mysql",
+            database="save",
+            auth_plugin='mysql_native_password' #for native authentication
         )
 
 
@@ -85,7 +86,7 @@ class DB:
         @return : The id if save was create or False
         '''
 
-        query = "INSERT INTO SAVES (name, date) VALUES (%s, %s)"
+        query = "INSERT INTO SAVES (NAME, DATE) VALUES (%s, %s)"
         values = (name, date)
 
         cursor = self.mydb.cursor(dictionary=True)
@@ -107,7 +108,7 @@ class DB:
         @return : The id if save was create or False
         '''
 
-        query = "INSERT INTO FILES (name, size, hash) VALUES (%s, %s, %s)"
+        query = "INSERT INTO FILES (NAME, SIZE, HASH) VALUES (%s, %s, %s)"
         values = (name, str(size), hash)
 
         cursor = self.mydb.cursor(dictionary=True)
@@ -143,7 +144,7 @@ class DB:
                 blockid = cursor.lastrowid
 
                 #insert into savedFiles
-                query = "INSERT INTO BLOCKSFILES (fileid, blockid) VALUES (%s, %s);"
+                query = "INSERT INTO BLOCKSFILES (FILEID, BLOCKID) VALUES (%s, %s);"
                 values = (str(fileid), blockid)
 
                 cursor.execute( query, values )
@@ -196,7 +197,7 @@ class DB:
         if not saveid : saveid = self.save_id
 
         #insert into savedFiles
-        query = "INSERT INTO SAVEDFILES (fileid, saveid, location) VALUES (%s, %s, %s);"
+        query = "INSERT INTO SAVEDFILES (FILEID, SAVEID, LOCATION) VALUES (%s, %s, %s);"
         values = (str(fileid), str(saveid), location)
 
         cursor = self.mydb.cursor()
@@ -215,10 +216,10 @@ class DB:
 
         if not saveid : saveid = self.save_id
 
-        query = """SELECT files.*, savedfiles.location
-                   FROM savedfiles, files
-                   WHERE savedfiles.SAVEID = %s
-                   AND files.id = savedfiles.FILEID;
+        query = """SELECT FILES.*, SAVEDFILES.location
+                   FROM SAVEDFILES, FILES
+                   WHERE SAVEDFILES.SAVEID = %s
+                   AND FILES.id = SAVEDFILES.FILEID;
         """
 
         values = (str(saveid),)
@@ -237,9 +238,9 @@ class DB:
     def get_locations_by_fileid(self, fileid:int):
 
 
-        query = """ SELECT savedfiles.location
-                    FROM savedfiles
-                    WHERE savedfiles.FILEID = %s;
+        query = """ SELECT SAVEDFILES.location
+                    FROM SAVEDFILES
+                    WHERE SAVEDFILES.FILEID = %s;
         """
 
         values = (str(fileid),)
@@ -257,10 +258,11 @@ class DB:
 
     def get_hashblocks_of_file(self, fileid:int):
 
-        query = """SELECT blocks.BLOCKNUMBER, blocks.HASH
-                   FROM blocksfiles, blocks
-                   WHERE blocksfiles.FILEID = %s
-                   and  blocks.ID = blocksfiles.BLOCKID;
+        query = """SELECT BLOCKS.BLOCKNUMBER, BLOCKS.HASH
+                   FROM BLOCKSFILES, BLOCKS
+                   WHERE BLOCKSFILES.FILEID = %s
+                   and  BLOCKS.ID = BLOCKSFILES.BLOCKID
+                   ORDER BY BLOCKS.BLOCKNUMBER;
         """
         values = (str(fileid),)
         
@@ -283,8 +285,8 @@ class DB:
     def get_saveid_by_savedate(self, date:str):
 
         query = """SELECT id
-                   FROM saves
-                   WHERE saves.DATE = %s;
+                   FROM SAVES
+                   WHERE SAVES.DATE = %s;
         """
         values = (date,)
         
@@ -301,8 +303,8 @@ class DB:
     def get_last_saveid_by_savename(self, saveName:str):
 
         query = """SELECT max(id)
-                   FROM saves
-                   WHERE saves.NAME = %s;
+                   FROM SAVES
+                   WHERE SAVES.NAME = %s;
         """
         values = (saveName,)
         
@@ -478,7 +480,6 @@ def main():
 
                     block = db.get_block(db_hash["HASH"])
                     restored_file.write(block)
-
 
 
     else:

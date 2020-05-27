@@ -12,10 +12,15 @@ from os.path import isfile as Isfile
 from os.path import isdir as Isdir
 from os.path import join as Join
 from os.path import getsize as GetSizeOfThis
+from os      import makedirs
 
 from ntpath import split as SplitFile
 
 from hashlib import md5
+
+from ftplib import FTP
+
+from io import BytesIO
 
 from datetime import datetime as Datetime
 
@@ -55,6 +60,21 @@ class DB:
             user="root",
             passwd="root",
             database="save"
+
+        )
+
+
+        self.ftp = FTP()
+        self.ftp.set_pasv(False) #for servers who doesn't supports passive mode
+
+        self.ftp.connect(
+            host="172.17.0.2",
+            port=21
+        )
+
+        self.ftp.login(
+            user="ftp",
+            passwd="ftp"
         )
 
     
@@ -106,28 +126,68 @@ class DB:
 
     def create_block(self, blocknumber:int, value:str, hash:str, fileid:int):
 
-        query = "INSERT INTO BLOCKS (blocknumber, value, hash) VALUES (%s, %s, %s)"
-        values = (str(blocknumber), value, hash)
+        #store the block with ftp
+        file_content = BytesIO(value)
+        self.ftp.storbinary('STOR ' + hash, file_content)
+    
+        try:
+            query = "INSERT INTO BLOCKS (BLOCKNUMBER, HASH) VALUES (%s, %s)"
+            values = (str(blocknumber), hash)
+
+            cursor = self.mydb.cursor(dictionary=True)
+            cursor.execute(query, values)
+
+            self.mydb.commit()
+
+            if(cursor.rowcount == 1):
+                blockid = cursor.lastrowid
+
+                #insert into savedFiles
+                query = "INSERT INTO BLOCKSFILES (fileid, blockid) VALUES (%s, %s);"
+                values = (str(fileid), blockid)
+
+                cursor.execute( query, values )
+
+                self.mydb.commit()
+
+                if(cursor.rowcount == 1):
+                    return blockid
+
+        except:
+            #delete the stored file as long as the db failed
+            self.ftp.delete(hash)
+            return False
+
+    def create_block_references(self, hashblock:str, fileid:int):
+
+  
+        #get the block id with the hash
+        query = """SELECT BLOCKS.ID
+                   FROM BLOCKS
+                   WHERE BLOCKS.HASH = %s
+                """
+
+        values = (hashblock,)
 
         cursor = self.mydb.cursor(dictionary=True)
         cursor.execute(query, values)
 
-        self.mydb.commit()
+        res = cursor.fetchall()
 
-        if(cursor.rowcount == 1):
-            blockid = cursor.lastrowid
+        if(len(res)):
+            blockid = res[0]["ID"]
 
-            #insert into savedFiles
-            query = "INSERT INTO BLOCKSFILES (fileid, blockid) VALUES (%s, %s);"
-            values = (str(fileid), blockid)
+            #insert into blocksFiles
+            query = "INSERT INTO BLOCKSFILES (FILEID, BLOCKID) VALUES (%s, %s);"
+            values = (str(fileid), str(blockid))
 
             cursor.execute( query, values )
 
             self.mydb.commit()
 
-
             if(cursor.rowcount == 1):
                 return blockid
+
 
         return False
 
@@ -171,7 +231,7 @@ class DB:
         if len(res):
             return res
         else:
-            return False
+            return []
 
 
     def get_locations_by_fileid(self, fileid:int):
@@ -211,24 +271,13 @@ class DB:
 
         return res
 
-    def get_blocks_of_file(self, fileid:int, start:int, end:int):
 
-        query = """SELECT blocks.BLOCKNUMBER, blocks.value
-                   FROM blocksfiles, blocks
-                   WHERE blocksfiles.FILEID = %s
-                   and  blocks.ID = blocksfiles.BLOCKID
-                   and blocks.BLOCKNUMBER >= """ + str(start) + """
-                   and blocks.BLOCKNUMBER < """  + str(end)   + """
-                   ORDER BY blocks.BLOCKNUMBER
-        """
-        values = (str(fileid),)
-        
-        cursor = self.mydb.cursor(dictionary=True)
-        cursor.execute(query, values)
+    def get_block(self, hash:str) -> bytes:
+        block = BytesIO()
+        self.ftp.retrbinary("RETR " + hash, block.write)
 
-        res = cursor.fetchall()
+        return block.getvalue()
 
-        return res
 
 
     def get_saveid_by_savedate(self, date:str):
@@ -423,17 +472,12 @@ def main():
             restored_file = open(Join(restore_file["location"] + '/', restore_file["NAME"]), 'wb')
             restored_file.close()
 
-            block_index = 0
-            blocks = db.get_blocks_of_file(restore_file["ID"], block_index, block_index+5)
+            #store blocks in file
+            with open(Join(restore_file["location"] + '/', restore_file["NAME"]), 'ab+') as restored_file:
+                for db_hash in db.get_hashblocks_of_file(restore_file["ID"]):
 
-            while (blocks):
-                with open(Join(restore_file["location"] + '/', restore_file["NAME"]), 'ab+') as restored_file:
-                    for block in blocks:
-                        restored_file.write(bytes(block["value"], encoding="utf8"))
-                
-                block_index += 5
-                blocks = db.get_blocks_of_file(restore_file["ID"], block_index, block_index+5)
-
+                    block = db.get_block(db_hash["HASH"])
+                    restored_file.write(block)
 
 
 

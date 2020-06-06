@@ -28,11 +28,47 @@ from datetime import datetime as Datetime
 DOCUMENTATION = """
 module: saver
 author: Martin Bonneau
-description : Allow to save a file or a folder to another storage server. Can do full or incremental save.
+description : Allow to save / restore a file or a folder to / from another storage server. Process by incrementals.
 
 options:
     path_to_save:
         description: The file or folder path to save
+        required : yes
+    save_name :
+        description: The name of the save
+        required : yes
+    action :
+        description: What you would like to do. 'save' or 'retore'
+        required : yes
+
+    block_size :
+        description: Size of block used when saving. Default : 4096B
+        required : no
+    restore_date:
+        description: Specific date used when restoring. Default : use last save with the given name
+        required : no
+
+    mysql_host :
+        description: Host of mysqldb
+        required : yes
+    mysql_user :
+        description: User of mysqldb
+        required : yes
+    mysql_passwd :
+        description: Password of mysqldb
+        required : yes
+    mysql_db :
+        description: Name of the dabatase of mysqldb
+        required : yes
+    
+    ftp_host :
+        description: Host of FTP server
+        required : yes
+    ftp_user :
+        description: User of FTP server
+        required : yes
+    ftp_passwd :
+        description: Password of FTP server
         required : yes
 """
 
@@ -40,11 +76,23 @@ EXAMPLES = """
 - name : "Example task name"
   saver:
     path_to_save: "/var/www/"
+    save_name: "Example save name"
+    action: "save"
+
+    mysql_host: "localhost"
+    mysql_user: "root"
+    mysql_passwd: "mysql"
+    mysql_db: "db_save"
+
+    ftp_host: "localhost"
+    ftp_user: "ftp"
+    ftp_passwd: "ftp"
+
 """
 
 RETURN = """
 results:
-    description: describe what module return
+    description: Success/error output
 """
 
 
@@ -55,12 +103,12 @@ class DB:
     ftp = None
 
     
-    def __init__(self):
+    def __init__(self, mysqlhost, mysqluser, mysqlpasswd, mysqldb, ftphost, ftpuser, ftppasswd):
         self.mydb = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            passwd="mysql",
-            database="save",
+            host=mysqlhost,
+            user=mysqluser,
+            passwd=mysqlpasswd,
+            database=mysqldb,
             auth_plugin='mysql_native_password' #for native authentication
         )
 
@@ -69,13 +117,13 @@ class DB:
         self.ftp.set_pasv(False) #for servers who doesn't supports passive mode
 
         self.ftp.connect(
-            host="172.17.0.2",
+            host=ftphost,
             port=21
         )
 
         self.ftp.login(
-            user="ftp",
-            passwd="ftp"
+            user=ftpuser,
+            passwd=ftppasswd
         )
 
     
@@ -328,24 +376,51 @@ def main():
         argument_spec = dict(
             #arguments here
             path_to_save = dict(required=True, type='str'),
+            save_name = dict(required=True, type='str'),
+            action = dict(required=True, type='str'),
+
+            block_size = dict(required=False, type='int'),
+            restore_date = dict(required=False, type='str'),
+
+            mysql_host = dict(required=True, type='str'),
+            mysql_user = dict(required=True, type='str'),
+            mysql_passwd = dict(required=True, type='str'),
+            mysql_db = dict(required=True, type='str'),
+            
+            ftp_host = dict(required=True, type='str'),
+            ftp_user = dict(required=True, type='str'),
+            ftp_passwd = dict(required=True, type='str')
         )
     )
     
     #get params
-    #path_to_save = module.params.get("path_to_save")
+    path_to_save = module.params.get("path_to_save")
+    save_name = module.params.get("save_name")
+    action = module.params.get("action")
 
-    #mock data
-    path_to_save = r'E:\Shared\p6\save_dir_ansible\example\simple'
-    save_name = "MysuperSave1"
-    blockSize = 64000
-    action = "restore"
-    restore_date = "2020-05-13 10:38:28.044540"
+    mysql_host = module.params.get("mysql_host")
+    mysql_user = module.params.get("mysql_user")
+    mysql_passwd = module.params.get("mysql_passwd")
+    mysql_db = module.params.get("mysql_db")
+    
+    ftp_host = module.params.get("ftp_host")
+    ftp_user = module.params.get("ftp_user")
+    ftp_passwd = module.params.get("ftp_passwd")
 
+    #variable for module_exit
     output=""
+    changed = False
 
-    db = DB()
+    #instantiate db
+    db = DB(mysql_host, mysql_user, mysql_passwd, mysql_db, #database connection
+            ftp_host, ftp_user, ftp_passwd)                 #ftp connection
 
     if(action == "save"):
+
+        #get param (or use default value)
+        if ( not module.params["block_size"]) : blockSize = 4096 #default for ext4
+        else                                  : blockSize = module.params.get("block_size")
+
 
         #check if the path exists and if it's a file or a directory
         if(Exists(path_to_save)):
@@ -451,6 +526,7 @@ def main():
                             block = fopen.read(blockSize)
                     
                     output = 'saved 100 per 100 ok'
+                    changed = True
                     
             
             else:
@@ -461,7 +537,12 @@ def main():
 
 
     elif (action == "restore"):
+        
+        #initialize variable
+        restore_date = None
+        if (module.params["restore_date"]) : restore_date = module.params.get("restore_date")
 
+        #if no specific date is set, get last save id with the save_name
         if (restore_date == None)   : lastSaveId = db.get_last_saveid_by_savename(save_name)[0]["max(id)"]
         else                        : lastSaveId = db.get_saveid_by_savedate(restore_date)[0]["id"]
 
@@ -480,14 +561,17 @@ def main():
 
                     block = db.get_block(db_hash["HASH"])
                     restored_file.write(block)
+        
+        output = "restoration 100 per 100 ok"
+        changed = True
 
 
     else:
-        output = "Unknow action \"" + action + "\""
+        output = "Unknow action \"" + action + "\". Available : 'save' or 'restore'"
 
 
     #export something to ansible output
-    module.exit_json(changed=True, ansible_module_results=output)
+    module.exit_json(changed=changed, ansible_module_results=output)
 
 
 def walkInDir(dir_path):

@@ -109,12 +109,10 @@ class DB:
             user=mysqluser,
             passwd=mysqlpasswd,
             database=mysqldb,
-            auth_plugin='mysql_native_password' #for native authentication
         )
 
 
         self.ftp = FTP()
-        self.ftp.set_pasv(False) #for servers who doesn't supports passive mode
 
         self.ftp.connect(
             host=ftphost,
@@ -375,10 +373,10 @@ def main():
     module = AnsibleModule(
         argument_spec = dict(
             #arguments here
-            path_to_save = dict(required=True, type='str'),
             save_name = dict(required=True, type='str'),
             action = dict(required=True, type='str'),
 
+            path_to_save = dict(required=False, type='str'),
             block_size = dict(required=False, type='int'),
             restore_date = dict(required=False, type='str'),
 
@@ -394,7 +392,6 @@ def main():
     )
     
     #get params
-    path_to_save = module.params.get("path_to_save")
     save_name = module.params.get("save_name")
     action = module.params.get("action")
 
@@ -417,6 +414,10 @@ def main():
 
     if(action == "save"):
 
+        if ( not module.params["path_to_save"]) : module.exit_json(changed=False, ansible_module_results="path_to_save is missing.", failed=True)
+
+        path_to_save = module.params.get("path_to_save")
+        
         #get param (or use default value)
         if ( not module.params["block_size"]) : blockSize = 4096 #default for ext4
         else                                  : blockSize = module.params.get("block_size")

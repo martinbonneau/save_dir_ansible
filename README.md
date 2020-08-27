@@ -85,3 +85,37 @@ There are two ways to use this module :
 5. Launch the module (and force ansible to use python3) with :
 
 `ansible-playbook [-i your_inventory_file.yml] restore.yml -e "ansible_python_interpreter=/usr/bin/python3"`
+
+## example of docker commands
+
+#!/bin/bash
+
+docker run -d -v /ftp:/home/vsftpd \
+-p 20:20 -p 21:21 -p 21100-21110:21100-21110 \
+-e FTP_USER=ftp -e FTP_PASS=ftp \
+-e PASV_ADDRESS=127.0.0.1 -e PASV_MIN_PORT=21100 -e PASV_MAX_PORT=21110 \
+--name ftp --restart=always fauria/vsftpd
+
+
+#mysql
+docker run \
+	--name mysql \
+    --network mysqlnetwork \
+	-v "/root/mysql:/var/lib/mysql" \
+	-e MYSQL_ROOT_PASSWORD=mysql \
+	-p 3306:3306 \
+	-d \
+	mysql
+
+
+#phpmyadmin
+docker run \
+	-d \
+	--name phpmyadmin \
+	--network mysqlnetwork \
+	-e PMA_HOST=mysql \
+	-p 8080:80 \
+	phpmyadmin/phpmyadmin:edge
+
+### PHPMyAdmin doesn't want to connect throught db
+ALTER USER root IDENTIFIED WITH mysql_native_password BY 'PASSWORD';
